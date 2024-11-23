@@ -1,29 +1,55 @@
-# Rust FUSE library for server, virtio-fs and vhost-user-fs
+# A FUSE-backend-rs-based passthrough filesystem to execute code on FUSE ops!
 
+The code has yet to be posted with my modifictions, and this is a placeholder for when I publish the first tersting versions. Keep your eyes peeled for more.
+
+Original project:
 ![Crates.io](https://img.shields.io/crates/l/fuse-backend-rs)
 [![Crates.io](https://img.shields.io/crates/v/fuse-backend-rs)](https://crates.io/crates/fuse-backend-rs)
 
-## Design
+## Oh dear non-existent gods, what have you done?!?
 
-The fuse-backend-rs crate is an rust library to implement Fuse daemons based on the
-[Linux FUSE device (/dev/fuse)](https://www.kernel.org/doc/html/latest/filesystems/fuse.html)
-or the [virtiofs](https://stefanha.github.io/virtio/virtio-fs.html#x1-41500011) draft specification.
+So I added fuctioality to the fuse-backed-rs passthrough example filesystem to execute configurable arbitrary code before or after specific FUSE operations on the mounted directory or specific structures within.
 
-Linux FUSE is an userspace filesystem framework, and the /dev/fuse device node is the interface for
-userspace filesystem daemons to communicate with the in-kernel fuse driver.
+## That's uholy and obscene! Why why why?
 
-And the virito-fs specification extends the FUSE framework into the virtualization world, which uses
-the Virtio protocol to transfer FUSE requests and responses between the Fuse client and server.
-With virtio-fs, the Fuse client runs within the guest kernel and the Fuse server runs on the host
-userspace or hardware.
+Why?? Why not, I ask? Sure this kinnd of super power should be wielded carefully and you can totally bork your stuff, but that os true with just about anything whe it comes to filesystems or arbitrary execution of any kind. 
 
-So the fuse-rs crate is a library to communicate with the Linux FUSE clients, which includes:
-- ABI layer, which defines all data structures shared between linux Fuse framework and Fuse daemons.
-- API layer, defines the interfaces for Fuse daemons to implement a userspace file system.
-- Transport layer, which supports both the Linux Fuse device and virtio-fs protocol.
-- VFS/pseudo_fs, an abstraction layer to support multiple file systems by a single virtio-fs device.
-- A sample passthrough file system implementation, which passes through files from daemons to clients. 
 
+Active file monitoring takes up system resources and has a more limited scope in terms of actions one can take in respose to activity on monitored files. Usinng the FUSE-layer filesystem perations as the triggers themselves, one can passively effect protocols and pull tricks one could not with active supra-filesystem checks. 
+
+
+## Alright, salesman, how does this snake-oil work, exactly?
+The key is passive structural-operation-initiated execution. Whenn something attempts to read, write or stat particular structures within the mount, the filesystem operation itself will execute configured code before or after the interaction with the structure.
+
+## So what is this FS actually doing?
+
+Without an active event-driven process or daemon, the directory mounted is locked an overlay mount is placed on top of it. This overlay passes through all operations to the underlying filesystem, but it does so after executing the configured pre-operation code, and returns operations to the requestor after receiving a return from the underlying filesystem and conditionally executing the configured post-operation code. The execution configurable assumes a bash-like envoronmet and syntax, although this will probably be changeable in future releases.
+
+## So why should I care?
+
+You shouldn't. Or you should if you want to have reliable conditional execution that is baked-into the filesystem layer and all interactios with the data concerned.
+
+You can do some really ugly, sloppy, terrible, rash, career-ending stuff that may or may not be super useful with this tool. Or you can have a lot of fun screwing with folks' minds, if you're something of an imp, like myself.
+
+## Like screwing with their minds HOW, exactly?
+
+Well funny you should ask! Here are some examples:
+
+Scenario 1: You have a bunch of config files you want all versions of kept and a copy of the old version made before any write to files in the mounted directory.
+
+When your fabulous admiistrator updates the files, the write call is split: before the write is performed, a copy of the existing file is made to another directory on the system and the name augemented to indicate the time, date and changing user of the file concerned. Once the copy is sucessfully written and only then, the overwriting of the original file is performed, and a sucessful write is returned to the user.
+
+Scenario 2: Your fabulous administrator is kind of a schmuck and you want to give him an ulcer.
+
+After the sucessful write of the new version of the file is completed, it the write-requesting user is checked, and if it is your target schmuck, then a rename is made of the proper config file to something similar and hidden, and the connfig file under the name requested is filled with garbage and  mucked-up on every new read with somethinng bizzare for the the next x minutes. X miutes is the time it takes for your admiistrator to be worried, totally-confused, frustrated, and not long ennough for the mucking about to be apparent to anyone they try to tell about the nonsense they are witnessing. The closure of the timed bash script includes a moving of the hiddenn proper data to the appripriate filename, so your admin not only goes crazy, but looks crazy to anyonne he attempts to explain it to. It is a fast-track to an ulcer and a personal bouncey-castle (padded room) in ann institution far from sharp edges or blunt surfaces for your admin and fu for the whole fam-damnly.
+
+Lesss sadistically I have found these kind of conditional executions helpful in my CI/CD/Code Pipelines, cloud devOps/admin, infosec management, and general systems tomfoolery in a number of ways. 
+
+Yes, we drink our own kool-aide and everything. If y'all end-up like those in Jonestown, I disclaim any responsibility. I told you this was all unholy. 
+
+I will be including the configs that would do such a thing  shortly, but for now a description will have to do.
+
+##Below from original readme - WIP status and I onnly have so many moments of distraction to spare.
 ![arch](docs/images/fuse-backend-architecture.svg)
 
 ## Examples
@@ -35,60 +61,8 @@ So the fuse-rs crate is a library to communicate with the Linux FUSE clients, wh
   for an example of pseudo file system.
 - [Passthrough File System](https://github.com/cloud-hypervisor/fuse-backend-rs/tree/master/src/passthrough)
   for an example of passthrough(stacked) file system.
-- [Registry Accelerated File System](https://github.com/dragonflyoss/image-service/tree/master/rafs)
-  for an example of readonly file system for container images.
 
-### Fuse Servers
-- [Dragonfly Image Service fusedev Server](https://github.com/dragonflyoss/image-service/blob/master/src/bin/nydusd/fusedev.rs)
-for an example of implementing a fuse server based on the
-[fuse-backend-rs](https://crates.io/crates/fuse-backend-rs) crate.
-- [Dragonfly Image Service vhost-user-fs Server](https://github.com/dragonflyoss/image-service/blob/master/src/bin/nydusd/virtiofs.rs)
-  for an example of implementing vhost-user-fs server based on the
-  [fuse-backend-rs](https://crates.io/crates/fuse-backend-rs) crate.
   
-### Fuse Server and Main Service Loop
-A sample fuse server based on the Linux Fuse device (/dev/fuse):
-
-```rust
-use fuse_backend_rs::api::{server::Server, Vfs, VfsOptions};
-use fuse_backend_rs::transport::fusedev::{FuseSession, FuseChannel};
-
-struct FuseServer {
-    server: Arc<Server<Arc<Vfs>>>,
-    ch: FuseChannel,
-}
-
-impl FuseServer {
-    fn svc_loop(&self) -> Result<()> {
-      // Given error EBADF, it means kernel has shut down this session.
-      let _ebadf = std::io::Error::from_raw_os_error(libc::EBADF);
-      loop {
-        if let Some((reader, writer)) = self
-                .ch
-                .get_request()
-                .map_err(|_| std::io::Error::from_raw_os_error(libc::EINVAL))?
-        {
-          if let Err(e) = self.server.handle_message(reader, writer, None, None) {
-            match e {
-              fuse_backend_rs::Error::EncodeMessage(_ebadf) => {
-                break;
-              }
-              _ => {
-                error!("Handling fuse message failed");
-                continue;
-              }
-            }
-          }
-        } else {
-          info!("fuse server exits");
-          break;
-        }
-      }
-      Ok(())
-    }
-}
-```
-
 ## License
 This project is licensed under
 - [Apache License](http://www.apache.org/licenses/LICENSE-2.0), Version 2.0
